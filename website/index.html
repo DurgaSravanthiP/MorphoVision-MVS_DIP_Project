@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MorphoVision | Advanced Morphological Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Jolly+Lodger&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="bg-container">
+        <img src="background.png" alt="Particles" class="bg-image">
+    </div>
+
+    <nav>
+        <div class="logo-container">
+            <img src="logo.png" alt="MVS Logo" class="logo-img">
+            <span class="logo-text">MorphoVision</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#about">Research</a></li>
+            <li><a href="#contact">Contact</a></li>
+        </ul>
+        <a href="#" class="cta-button">Download MVS</a>
+    </nav>
+
+    <header class="hero">
+        <h1>MorphoVision System</h1>
+        <p>Beyond standard image processing. A high-precision morphological analysis framework designed for advanced material science and biological research.</p>
+        <div class="hero-btns">
+            <a href="#features" class="cta-button" style="background: white; color: var(--primary); margin-right: 1rem;">Explore Features</a>
+            <a href="#" class="cta-button">Get Started</a>
+        </div>
+    </header>
+
+    <section id="features" class="features">
+        <div class="feature-card">
+            <i class="fa-solid fa-bezier-curve feature-icon"></i>
+            <h3>Curvature Mapping</h3>
+            <p>Go beyond simple perimeter measurements. MVS calculates local curvature at every boundary point to detect sub-micron surface roughness.</p>
+        </div>
+        <div class="feature-card">
+            <i class="fa-solid fa-microscope feature-icon"></i>
+            <h3>Fractal Analysis</h3>
+            <p>Quantify the complexity of irregular particles using integrated Minkowski-Bouligand dimension calculations (Box-Counting).</p>
+        </div>
+        <div class="feature-card">
+            <i class="fa-solid fa-chart-scatter feature-icon"></i>
+            <h3>Interactive Plots</h3>
+            <p>Seamlessly link statistical distributions with raw data. Click a data point to instantly visualize the corresponding particle in its original context.</p>
+        </div>
+        <div class="feature-card">
+            <i class="fa-solid fa-wand-magic-sparkles feature-icon"></i>
+            <h3>Unified Dashboard</h3>
+            <p>A modern, streamlined interface that replaces scattered windows with a logical, step-by-step research pipeline.</p>
+        </div>
+    </section>
+
+    <footer style="text-align: center; padding: 3rem; background: var(--bg-dark); color: white;">
+        <img src="logo.png" alt="MVS Logo" style="height: 40px; margin-bottom: 1rem; filter: brightness(0) invert(1);">
+        <p>&copy; 2026 MorphoVision System (MVS). Research-Grade Morphological Solutions.</p>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+    </script>
+</body>
+</html>
