@@ -29,39 +29,122 @@
     </nav>
 
     <header class="hero">
-        <h1>MorphoVision System</h1>
-        <p>Beyond standard image processing. A high-precision morphological analysis framework designed for advanced material science and biological research.</p>
-        <div class="hero-btns">
-            <a href="#features" class="cta-button" style="background: white; color: var(--primary); margin-right: 1rem;">Explore Features</a>
-            <a href="#" class="cta-button">Get Started</a>
+        <div class="bubbles-container">
+            <img src="../circles.png" alt="" class="bubble bubble-1">
+            <img src="../circles.png" alt="" class="bubble bubble-2">
+            <img src="../circles.png" alt="" class="bubble bubble-3">
+        </div>
+
+        <div class="app-mockup">
+            <div class="window-header">
+                <div class="window-title">
+                    <img src="../logo.png" alt="" class="window-logo">
+                    <span>MorphoVision</span>
+                </div>
+                <div class="window-controls">
+                    <span><i class="fa-solid fa-minus"></i></span>
+                    <span><i class="fa-regular fa-square"></i></span>
+                    <span><i class="fa-solid fa-xmark"></i></span>
+                </div>
+            </div>
+            <div class="window-menu">
+                <span>File</span>
+                <span>Edit</span>
+                <span>Image</span>
+                <span>Process</span>
+                <span>Analyze</span>
+                <span>Plugins</span>
+                <span>Window</span>
+                <span>Help</span>
+            </div>
+            <div class="window-toolbar">
+                <div class="tool-icon active"><i class="fa-solid fa-vector-square"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-circle-nodes"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-draw-polygon"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-wave-square"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-lines-leaning"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-plus"></i></div>
+                <div class="tool-divider"></div>
+                <div class="tool-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-hand"></i></div>
+                <div class="tool-icon"><i class="fa-solid fa-i-cursor"></i></div>
+            </div>
+            <div class="window-canvas">
+                <div class="canvas-text">
+                    <span>M</span><span class="v-accent">V</span><span>S</span>
+                </div>
+                <img src="../logo.png" alt="MVS Logo" class="canvas-logo">
+            </div>
+        </div>
+
+        <div class="hero-content">
+            <h1>MorphoVision System</h1>
+            <p>The premium morphological analysis framework. Integrated particle characterization, fractal dimensions, and high-precision curvature mapping.</p>
+            <div class="hero-btns">
+                <a href="#features" class="cta-button" style="background: white; color: var(--primary); margin-right: 1rem;">Explore Features</a>
+                <a href="#" class="cta-button">Download Now</a>
+            </div>
         </div>
     </header>
 
     <section id="features" class="features">
-        <div class="feature-card">
-            <i class="fa-solid fa-bezier-curve feature-icon"></i>
-            <h3>Curvature Mapping</h3>
-            <p>Go beyond simple perimeter measurements. MVS calculates local curvature at every boundary point to detect sub-micron surface roughness.</p>
+        <div class="section-title">
+            <h2>Core Capabilities</h2>
+            <p>Advanced tools for the modern material scientist.</p>
         </div>
-        <div class="feature-card">
-            <i class="fa-solid fa-microscope feature-icon"></i>
-            <h3>Fractal Analysis</h3>
-            <p>Quantify the complexity of irregular particles using integrated Minkowski-Bouligand dimension calculations (Box-Counting).</p>
-        </div>
-        <div class="feature-card">
-            <i class="fa-solid fa-chart-scatter feature-icon"></i>
-            <h3>Interactive Plots</h3>
-            <p>Seamlessly link statistical distributions with raw data. Click a data point to instantly visualize the corresponding particle in its original context.</p>
-        </div>
-        <div class="feature-card">
-            <i class="fa-solid fa-wand-magic-sparkles feature-icon"></i>
-            <h3>Unified Dashboard</h3>
-            <p>A modern, streamlined interface that replaces scattered windows with a logical, step-by-step research pipeline.</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <i class="fa-solid fa-microscope"></i>
+                </div>
+                <h3>MorphoWizard</h3>
+                <p>A unified research dashboard that streamlines the entire analysis pipeline from acquisition to reporting.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <h3>MorphoPlotter</h3>
+                <p>Interactive statistical distribution analysis. Link geometric data directly to visual particle context.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <i class="fa-solid fa-bezier-curve"></i>
+                </div>
+                <h3>Geometric Precision</h3>
+                <p>Calculate Area, Perimeter, Circularity, and local Curvature with sub-pixel accuracy.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <i class="fa-solid fa-dna"></i>
+                </div>
+                <h3>Fractal Dimensions</h3>
+                <p>Built-in Minkowski-Bouligand calculations for quantifying complex, irregular particle morphologies.</p>
+            </div>
         </div>
     </section>
 
-    <footer style="text-align: center; padding: 3rem; background: var(--bg-dark); color: white;">
-        <img src="logo.png" alt="MVS Logo" style="height: 40px; margin-bottom: 1rem; filter: brightness(0) invert(1);">
+    <section id="about" class="research-section">
+        <div class="research-content">
+            <h2>Research-Grade Analysis</h2>
+            <p>MorphoVision-MVS is built upon the robust ImageJ framework, extending it with specialized algorithms designed specifically for microparticle characterization. Our system minimizes human error and maximizes reproducibility in high-stakes research environments.</p>
+            <ul class="research-list">
+                <li><i class="fa-solid fa-check"></i> Automated Thresholding & Filtering</li>
+                <li><i class="fa-solid fa-check"></i> Real-time Geometric Feedback</li>
+                <li><i class="fa-solid fa-check"></i> Export-ready Data Tables</li>
+            </ul>
+        </div>
+        <div class="research-visual">
+            <img src="../background.png" alt="Research Background" class="visual-img">
+            <div class="visual-overlay"></div>
+        </div>
+    </section>
+
+    <footer class="main-footer">
+        <div class="footer-logo">
+            <span class="m-red">M</span><span class="v-white">V</span><span class="s-red">S</span>
+        </div>
         <p>&copy; 2026 MorphoVision System (MVS). Research-Grade Morphological Solutions.</p>
     </footer>
 

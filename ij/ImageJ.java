@@ -18,6 +18,7 @@ import java.awt.image.*;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
+import ij.gui.SplashPanel;
 
 /**
 This frame is the main ImageJ class.
@@ -164,10 +165,14 @@ public class ImageJ extends Frame implements ActionListener,
 		m.installPopupMenu(this);
 		setLayout(new BorderLayout());
 		
-		// Tool bar
+		// Tool bar – sits at the top (North)
 		toolbar = new Toolbar();
 		toolbar.addKeyListener(this);
-		add("Center", toolbar);
+		add("North", toolbar);
+
+		// Splash panel – background + circles + logo (Centre)
+		SplashPanel splashPanel = new SplashPanel();
+		add("Center", splashPanel);
 
 		// Status bar
 		statusBar = new Panel();
@@ -199,22 +204,19 @@ public class ImageJ extends Frame implements ActionListener,
 		setCursor(Cursor.getDefaultCursor()); // work-around for JDK 1.1.8 bug
 		if (mode!=NO_SHOW) {
 			if (IJ.isWindows()) try {setIcon();} catch(Exception e) {}
-			setResizable(false);
+			setResizable(true);                       // enable maximize button
 			setAlwaysOnTop(Prefs.alwaysOnTop);
 			pack();
 			setLocation(loc.x, loc.y);
+			setExtendedState(Frame.MAXIMIZED_BOTH);   // start maximized (fills screen)
 			setVisible(true);
-			Dimension size = getSize();
-			if (size!=null) {
-				if (IJ.debugMode) IJ.log("size: "+size);
-				if (IJ.isWindows() && (size.height>108||IJ.javaVersion()>=10)) {
-					// workaround for IJ window layout and FileDialog freeze problems with Windows 10 Creators Update
-					IJ.wait(10);
-					pack();
-					if (IJ.debugMode) IJ.log("pack()");
-					if (!Prefs.jFileChooserSettingChanged)
-						Prefs.useJFileChooser = true;
-				} else if (IJ.isMacOSX()) {
+			if (IJ.isWindows()) {
+				IJ.wait(10);
+				if (!Prefs.jFileChooserSettingChanged)
+					Prefs.useJFileChooser = true;
+			} else if (IJ.isMacOSX()) {
+				Dimension size = getSize();
+				if (size!=null) {
 					Rectangle maxBounds = GUI.getMaxWindowBounds(this);
 					if (loc.x+size.width>maxBounds.x+maxBounds.width)
 						setLocation(loc.x, loc.y);
@@ -289,11 +291,18 @@ public class ImageJ extends Frame implements ActionListener,
 	}
 	
     void setIcon() throws Exception {
+		// Try logo.png in working directory first
+		java.io.File logoFile = new java.io.File(System.getProperty("user.dir") + java.io.File.separator + "logo.png");
+		if (logoFile.exists()) {
+			Image img = new ImageIcon(logoFile.getAbsolutePath()).getImage();
+			if (img != null) { setIconImage(img); return; }
+		}
 		URL url = this.getClass().getResource("/microscope.gif");
 		if (url==null) return;
 		Image img = createImage((ImageProducer)url.getContent());
 		if (img!=null) setIconImage(img);
 	}
+
 	
 	public Point getPreferredLocation() {
 		int ijX = Prefs.getInt(IJ_X,-99);
