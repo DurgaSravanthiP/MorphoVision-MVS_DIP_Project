@@ -46,10 +46,81 @@ public class PlotGenerator {
     public static BufferedImage scatterPlot(List<ParticleGeometry> p, String unit) {
         double[] xs = p.stream().mapToDouble(g -> g.area).toArray();
         double[] ys = p.stream().mapToDouble(g -> g.circularity).toArray();
-        double[] cs = ys; // colour by circularity
+        double[] cs = ys;
         return scatter(xs, ys, cs,
                 "Area vs Circularity",
                 "Area (" + unit + "²)", "Circularity");
+    }
+
+    /** Solidity histogram — reveals agglomerate particles (solidity < 0.85). */
+    public static BufferedImage solidityHistogram(List<ParticleGeometry> p) {
+        double[] data = p.stream().mapToDouble(g -> g.solidity).toArray();
+        return histogram(data, 20, "Solidity Distribution",
+                "Solidity (Area/ConvexHullArea)", "Count");
+    }
+
+    /** Heywood Circularity Factor — widely used in pharmaceutical particle analysis. */
+    public static BufferedImage heywoodHistogram(List<ParticleGeometry> p) {
+        double[] data = p.stream().mapToDouble(g -> g.heywoodFactor).toArray();
+        return histogram(data, 20, "Heywood Circularity Factor",
+                "Heywood Factor (1 = perfect circle)", "Count");
+    }
+
+    /** PA Fractal Dimension — measures boundary roughness (unique to MorphoVision). */
+    public static BufferedImage fractalDimHistogram(List<ParticleGeometry> p) {
+        double[] data = p.stream().mapToDouble(g -> g.paFractalDim).toArray();
+        return histogram(data, 20, "PA Fractal Dimension Distribution",
+                "Fractal Dimension (1=smooth → 2=rough)", "Count");
+    }
+
+    /**
+     * Morphological Classification Bar Chart — unique to MorphoVision.
+     * Shows how many particles fall into each auto-classified category.
+     */
+    public static BufferedImage morphClassChart(List<ParticleGeometry> p) {
+        java.util.Map<String, Integer> counts = ParticleGeometry.morphClassCounts(p);
+        String[] labels = counts.keySet().toArray(new String[0]);
+        int[]    vals   = counts.values().stream().mapToInt(Integer::intValue).toArray();
+
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = setup(img, "Morphological Classification");
+
+        int maxVal = 1;
+        for (int v : vals) maxVal = Math.max(maxVal, v);
+
+        // Colour per class
+        Color[] COLOURS = {
+            new Color(40, 160, 80),   // Spherical     → green
+            new Color(80, 180, 120),  // Near-Spherical → light green
+            new Color(200, 140, 40),  // Elongated      → amber
+            new Color(160, 80, 60),   // Irregular      → rust
+            new Color(140, 60, 140)   // Agglomerate    → purple
+        };
+
+        int pw = W - ML - MR, ph = H - MT - MB;
+        drawGrid(g, 5, maxVal, pw, ph);
+
+        int bw = pw / labels.length;
+        for (int i = 0; i < labels.length; i++) {
+            int bh = (int)((double) vals[i] / maxVal * ph);
+            int x = ML + i * bw + 4, y = MT + ph - bh;
+            g.setColor(i < COLOURS.length ? COLOURS[i] : BAR_FILL);
+            g.fillRect(x, y, bw - 8, bh);
+            g.setColor(Color.DARK_GRAY);
+            g.drawRect(x, y, bw - 8, bh);
+            // Count label above bar
+            g.setFont(TICK_F);
+            String cnt = String.valueOf(vals[i]);
+            g.drawString(cnt, x + (bw - 8 - g.getFontMetrics().stringWidth(cnt)) / 2, y - 2);
+            // Class label below axis
+            g.setColor(AXIS);
+            String lbl = labels[i];
+            int lx = x + (bw - 8 - g.getFontMetrics().stringWidth(lbl)) / 2;
+            g.drawString(lbl, lx, MT + ph + 14);
+        }
+        drawAxes(g, "Particle Class", "Count", pw, ph);
+        g.dispose();
+        return img;
     }
 
     // ── Histogram ────────────────────────────────────────────────────────────

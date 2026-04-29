@@ -156,9 +156,10 @@ public class PipelineEngine {
                     String.format("%.0f", effectiveMinSize) + " px²)…");
 
             ResultsTable rt = new ResultsTable();
-            int measurements = Measurements.AREA | Measurements.PERIMETER |
-                    Measurements.SHAPE_DESCRIPTORS | Measurements.FERET |
-                    Measurements.ELLIPSE | Measurements.MEAN;
+            int measurements = Measurements.AREA       | Measurements.PERIMETER |
+                               Measurements.SHAPE_DESCRIPTORS |  // Circ, AR, Round, Solid
+                               Measurements.FERET      | Measurements.ELLIPSE   |
+                               Measurements.MEAN       | Measurements.CENTROID;
             // No EXCLUDE_EDGE_PARTICLES so nothing is missed
             int options = ParticleAnalyzer.SHOW_OVERLAY_OUTLINES |
                           ParticleAnalyzer.CLEAR_WORKSHEET;
@@ -174,21 +175,25 @@ public class PipelineEngine {
             pa.analyze(work);
 
 
-            // ── Step 5: Extract measurements ──────────────────────────────
-            cb.onStep(5, "Extracting geometry and applying scale (1 px = " +
-                    nmPerPixel + " " + unit + ")…");
+            cb.onStep(5, "Extracting 14 geometric + morphological metrics per particle…");
             List<ParticleGeometry> results = new ArrayList<>();
             double s = nmPerPixel;
             for (int i = 0; i < rt.getCounter(); i++) {
-                double area  = safeGet(rt, "Area",       i) * s * s;
-                double perim = safeGet(rt, "Perim.",     i) * s;
-                double circ  = safeGet(rt, "Circ.",      i);
-                double ar    = safeGet(rt, "AR",          i);
-                double fMax  = safeGet(rt, "Feret",      i) * s;
-                double fMin  = safeGet(rt, "MinFeret",   i) * s;
-                double fAng  = safeGet(rt, "FeretAngle", i);
+                double area     = safeGet(rt, "Area",       i) * s * s;
+                double perim    = safeGet(rt, "Perim.",     i) * s;
+                double circ     = safeGet(rt, "Circ.",      i);
+                double ar       = safeGet(rt, "AR",          i);
+                double fMax     = safeGet(rt, "Feret",      i) * s;
+                double fMin     = safeGet(rt, "MinFeret",   i) * s;
+                double fAng     = safeGet(rt, "FeretAngle", i);
+                double solidity = safeGet(rt, "Solidity",   i);  // Area/ConvexHullArea
+                double round    = safeGet(rt, "Round",      i);  // 4A/(π·major²)
+                double major    = safeGet(rt, "Major",      i) * s; // ellipse major axis
+                double minor    = safeGet(rt, "Minor",      i) * s; // ellipse minor axis
                 results.add(new ParticleGeometry(
-                        i + 1, area, perim, circ, ar, fMax, fMin, fAng));
+                        i + 1, area, perim, circ, ar,
+                        fMax, fMin, fAng,
+                        solidity, round, major, minor));
             }
 
             cb.onStep(6, "Pipeline complete. " + results.size() + " particles measured.");

@@ -111,8 +111,8 @@ public class AutomationPanel extends JInternalFrame {
         previewScroll.setBackground(CARD_BG);
         previewScroll.setBorder(null);
 
-        // Charts tab – 2×2 grid of chart images
-        chartsPanel = dark(new JPanel(new GridLayout(2, 2, 6, 6)));
+        // Charts tab – 2×4 grid for 8 charts
+        chartsPanel = dark(new JPanel(new GridLayout(2, 4, 5, 5)));
         chartsPanel.setBorder(new EmptyBorder(4, 4, 4, 4));
         addPlaceholderCharts();
         JScrollPane chartsScroll = new JScrollPane(chartsPanel);
@@ -142,7 +142,9 @@ public class AutomationPanel extends JInternalFrame {
 
     private static final String[] CHART_TITLES = {
         "Area Distribution", "Circularity Distribution",
-        "Aspect Ratio Distribution", "Area vs Circularity Scatter"
+        "Aspect Ratio Distribution", "Area vs Circularity Scatter",
+        "Solidity Distribution", "Heywood Circularity Factor",
+        "PA Fractal Dimension", "Morphological Classification"
     };
 
     private void addPlaceholderCharts() {
@@ -587,12 +589,18 @@ public class AutomationPanel extends JInternalFrame {
         if (results.isEmpty()) return;
         charts.clear();
         try {
+            // 4 standard charts
             charts.add(PlotGenerator.areaHistogram(results, engine.getUnit()));
             charts.add(PlotGenerator.circularityHistogram(results));
             charts.add(PlotGenerator.aspectRatioHistogram(results));
             charts.add(PlotGenerator.scatterPlot(results, engine.getUnit()));
+            // 4 new unique research charts
+            charts.add(PlotGenerator.solidityHistogram(results));
+            charts.add(PlotGenerator.heywoodHistogram(results));
+            charts.add(PlotGenerator.fractalDimHistogram(results));
+            charts.add(PlotGenerator.morphClassChart(results));
             showCharts();
-            log("📊 Charts generated — see Charts tab.");
+            log("📊 8 charts generated — see Charts tab.");
         } catch (Exception e) {
             log("⚠ Chart generation error: " + e.getMessage());
         }
