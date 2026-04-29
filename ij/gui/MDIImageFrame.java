@@ -9,16 +9,14 @@ import java.awt.event.*;
 /**
  * MDIImageFrame – JInternalFrame hosting an ImageCanvas inside MorphoDesktop.
  *
- * Key fix: sizing the canvas is done via a Swing Timer so the JInternalFrame
- * has been fully laid out before we call fitToWindow(). We also derive the
- * target size from the JInternalFrame bounds (always valid) rather than from
- * the AWT sub-panel size (which is 0 until the AWT peer is realised).
+ * Fix: awtHost uses null layout so we set canvas bounds directly.
+ * fitToWindow() then reads the correct size from getWidth()/getHeight().
  */
 public class MDIImageFrame extends JInternalFrame {
 
     private final ImageWindow imageWin;
     private ImageCanvas ic;
-    private Panel awtHost;   // AWT bridge panel
+    private Panel awtHost;
 
     public MDIImageFrame(ImageWindow win) {
         super(win.getTitle(), true, true, true, true);
@@ -28,27 +26,29 @@ public class MDIImageFrame extends JInternalFrame {
         getContentPane().setLayout(new BorderLayout());
         getContentPane().setBackground(Color.black);
 
-        // ── AWT bridge: Canvas lives inside an AWT Panel ──────────────────
-        awtHost = new Panel(new BorderLayout());
+        // ── AWT bridge: null layout so WE control canvas bounds ───────────
+        awtHost = new Panel(null);
         awtHost.setBackground(Color.black);
 
         win.remove(ic);
-        awtHost.add(ic, BorderLayout.CENTER);
+        awtHost.add(ic);
 
         // Transfer any scrollbars (StackWindow sliders)
         int n = win.getComponentCount();
         for (int i = 0; i < n; i++) {
             Component c = win.getComponent(i);
             win.remove(c);
-            awtHost.add(c, BorderLayout.SOUTH);
+            awtHost.add(c);
             i--; n--;
         }
 
         getContentPane().add(awtHost, BorderLayout.CENTER);
 
-        // ── Resize: re-fit image whenever the internal frame is resized ────
+        // ── Re-fit on every resize ─────────────────────────────────────────
         addComponentListener(new ComponentAdapter() {
-            @Override public void componentResized(ComponentEvent e) { scheduleFit(); }
+            @Override public void componentResized(ComponentEvent e) {
+                doFitLater(50);
+            }
         });
 
         // ── Internal frame lifecycle ────────────────────────────────────────
@@ -56,8 +56,10 @@ public class MDIImageFrame extends JInternalFrame {
 
             @Override
             public void internalFrameOpened(InternalFrameEvent e) {
-                // Delay so AWT + Swing layout is fully realized first
-                scheduleFit();
+                // Try multiple times to handle slow AWT peer creation
+                doFitLater(100);
+                doFitLater(300);
+                doFitLater(600);
             }
 
             @Override
@@ -70,7 +72,7 @@ public class MDIImageFrame extends JInternalFrame {
             public void internalFrameClosing(InternalFrameEvent e) {
                 MorphoDesktop desk = MorphoDesktop.getInstance();
                 if (desk != null) desk.unregister(imageWin);
-                imageWin.add(ic);   // re-attach so ImageWindow.close() can dispose
+                imageWin.add(ic);
                 imageWin.close();
             }
         });
@@ -90,9 +92,8 @@ public class MDIImageFrame extends JInternalFrame {
 
     // ── Fit helpers ──────────────────────────────────────────────────────────
 
-    /** Schedules a fit 200 ms later so Swing/AWT layout finishes first. */
-    private void scheduleFit() {
-        Timer t = new Timer(200, ev -> {
+    private void doFitLater(int delayMs) {
+        Timer t = new Timer(delayMs, ev -> {
             ((Timer) ev.getSource()).stop();
             fitImage();
         });
@@ -101,32 +102,32 @@ public class MDIImageFrame extends JInternalFrame {
     }
 
     /**
-     * Resizes the canvas to fill the content pane, then calls fitToWindow()
-     * so ImageJ recalculates the correct magnification.
+     * Manually sets canvas bounds to fill the content pane, then calls
+     * fitToWindow() which uses getWidth()/getHeight() to recalculate zoom.
      */
     private void fitImage() {
-        if (ic == null || !isShowing()) return;
+        if (ic == null || imageWin == null || imageWin.getImagePlus() == null) return;
+        if (!isShowing()) return;
 
-        // Measure the usable area: JInternalFrame minus its own borders/title
-        Insets fi  = getInsets();                          // Swing frame insets
+        // Available area = JInternalFrame minus its own border/title insets
+        Insets fi = getInsets();
         int avW = getWidth()  - fi.left - fi.right;
         int avH = getHeight() - fi.top  - fi.bottom;
         if (avW < 10 || avH < 10) return;
 
-        // Push the size down to the AWT panel and canvas
+        // Stretch the AWT host to fill the content area
         awtHost.setBounds(0, 0, avW, avH);
-        awtHost.setPreferredSize(new Dimension(avW, avH));
-        ic.setBounds(0, 0, avW, avH);
-        ic.setSize(avW, avH);
 
-        // Recalculate magnification so the whole image is visible
+        // Directly set the canvas bounds (null layout, so this sticks)
+        ic.setBounds(0, 0, avW, avH);
+
+        // fitToWindow() now reads ic.getWidth()==avW, ic.getHeight()==avH
+        // and computes the correct magnification
         ic.fitToWindow();
 
-        // Force repaints on both layers
+        // Force repaints
         ic.repaint();
-        awtHost.validate();
         awtHost.repaint();
-        validate();
         repaint();
     }
 
