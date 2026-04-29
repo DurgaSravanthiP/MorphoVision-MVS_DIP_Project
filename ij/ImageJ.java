@@ -171,9 +171,26 @@ public class ImageJ extends Frame implements ActionListener,
 		setLayout(new BorderLayout());
 		
 		// Tool bar – sits at the top (North)
+		// Wrapped in a Panel so we can append the Automate button to the right
 		toolbar = new Toolbar();
 		toolbar.addKeyListener(this);
-		add("North", toolbar);
+		Panel northBar = new Panel(new BorderLayout(0, 0));
+		northBar.setBackground(new Color(228, 228, 228));
+		northBar.add("Center", toolbar);
+
+		// ⚡ Automate Your Work button
+		Button automateBtn = new Button("  ⚡ Automate Your Work  ");
+		automateBtn.setFont(new Font("SansSerif", Font.BOLD, 11));
+		automateBtn.setBackground(new Color(30, 70, 150));
+		automateBtn.setForeground(Color.WHITE);
+		automateBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		automateBtn.addActionListener(ev -> {
+			ij.gui.MorphoDesktop desk = ij.gui.MorphoDesktop.getInstance();
+			if (desk != null) desk.openAutomationPanel();
+			else IJ.showMessage("Workspace not ready. Please wait.");
+		});
+		northBar.add("East", automateBtn);
+		add("North", northBar);
 
 		// MDI Desktop – single workspace where all images/results appear
 		MorphoDesktop desktop = new MorphoDesktop();

@@ -246,6 +246,25 @@ public class MorphoDesktop extends JDesktopPane {
         repaint();
     }
 
+    /** Opens the Automate Your Work panel as an internal frame. */
+    public void openAutomationPanel() {
+        // Check if already open
+        for (JInternalFrame f : getAllFrames()) {
+            if (f instanceof ij.plugin.morpho.AutomationPanel) {
+                try { f.setIcon(false); f.setSelected(true); } catch (Exception ignored) {}
+                return;
+            }
+        }
+        ij.plugin.morpho.AutomationPanel ap = new ij.plugin.morpho.AutomationPanel();
+        // Fill ~90% of desktop
+        int w = (int)(getWidth() * 0.90);
+        int h = (int)(getHeight() * 0.90);
+        ap.setBounds((getWidth() - w) / 2, (getHeight() - h) / 2, w, h);
+        add(ap);
+        ap.setVisible(true);
+        try { ap.setSelected(true); } catch (Exception ignored) {}
+    }
+
     // ── Tile / Cascade ─────────────────────────────────────────────────────────
     public void tileWindows() {
         JInternalFrame[] frames = getAllFrames();
