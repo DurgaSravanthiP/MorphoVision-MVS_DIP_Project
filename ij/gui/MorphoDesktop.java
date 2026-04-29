@@ -19,6 +19,9 @@ public class MorphoDesktop extends JDesktopPane {
     private static MorphoDesktop instance;
     private final Map<Frame, JInternalFrame> frameMap = new LinkedHashMap<>();
 
+    // Splash images shown when no images are open
+    private java.awt.image.BufferedImage bgImg, circlesImg, logoImg;
+
     // ── Singleton ─────────────────────────────────────────────────────────────
     public static MorphoDesktop getInstance()              { return instance; }
     public static void setInstance(MorphoDesktop d)        { instance = d; }
@@ -47,6 +50,89 @@ public class MorphoDesktop extends JDesktopPane {
                 }
             }
         });
+
+        // Load splash images for the empty-desktop background
+        loadSplash();
+    }
+
+    // ── Splash background ──────────────────────────────────────────────────────
+    private void loadSplash() {
+        String root = getSplashRoot();
+        bgImg      = loadImg(root + "background.png");
+        circlesImg = loadImg(root + "circles.png");
+        logoImg    = loadImg(root + "logo.png");
+    }
+
+    private String getSplashRoot() {
+        try {
+            String path = getClass().getProtectionDomain().getCodeSource()
+                    .getLocation().toURI().getPath();
+            java.io.File f = new java.io.File(path);
+            java.io.File dir = f.isDirectory() ? f : f.getParentFile();
+            for (int i = 0; i < 6; i++) {
+                if (new java.io.File(dir, "background.png").exists())
+                    return dir.getAbsolutePath() + java.io.File.separator;
+                if (dir.getParentFile() == null) break;
+                dir = dir.getParentFile();
+            }
+        } catch (Exception ignored) {}
+        return System.getProperty("user.dir") + java.io.File.separator;
+    }
+
+    private java.awt.image.BufferedImage loadImg(String path) {
+        try {
+            java.io.File f = new java.io.File(path);
+            if (f.exists()) return javax.imageio.ImageIO.read(f);
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        int w = getWidth(), h = getHeight();
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // 1. Background
+        if (bgImg != null) {
+            g2.drawImage(bgImg, 0, 0, w, h, null);
+        }
+
+        // 2. Circles at 30% opacity (left + mirrored right)
+        if (circlesImg != null) {
+            int circH = (int)(h * 0.55);
+            int circW = (int)((double) circlesImg.getWidth() / circlesImg.getHeight() * circH);
+            int leftX = -circW / 4;
+            int leftY = h - circH + (int)(circH * 0.1);
+            Composite saved = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.30f));
+            g2.drawImage(circlesImg, leftX, leftY, circW, circH, null);
+            Graphics2D g2r = (Graphics2D) g2.create();
+            g2r.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.30f));
+            g2r.translate(w + circW / 4, leftY);
+            g2r.scale(-1, 1);
+            g2r.drawImage(circlesImg, 0, 0, circW, circH, null);
+            g2r.dispose();
+            g2.setComposite(saved);
+        }
+
+        // 3. Logo centred
+        if (logoImg != null) {
+            int logoH = (int)(h * 0.40);
+            int logoW = (int)((double) logoImg.getWidth() / logoImg.getHeight() * logoH);
+            g2.drawImage(logoImg, (w - logoW) / 2, (h - logoH) / 2, logoW, logoH, null);
+        } else {
+            g2.setColor(new Color(0xBB, 0x37, 0x37));
+            g2.setFont(new Font("SansSerif", Font.BOLD, 80));
+            FontMetrics fm = g2.getFontMetrics();
+            String txt = "MVS";
+            g2.drawString(txt, (w - fm.stringWidth(txt)) / 2,
+                    (h + fm.getAscent()) / 2 - fm.getDescent());
+        }
     }
 
     // ── UIManager styling ──────────────────────────────────────────────────────
