@@ -132,6 +132,17 @@ public class TextWindow extends Frame implements ActionListener, FocusListener, 
 		WindowManager.setWindow(this);
 	}
 
+	/** Overridden to embed in MorphoDesktop if available. */
+	@Override
+	public void show() {
+		MorphoDesktop desk = MorphoDesktop.getInstance();
+		if (desk != null) {
+			desk.embedTextWindow(this);
+		} else {
+			super.show();
+		}
+	}
+
 	/**
 	* Opens a new text window containing the contents of a text file.
 	* @param path		the path to the text file

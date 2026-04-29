@@ -154,6 +154,19 @@ public class ImageWindow extends Frame implements FocusListener, WindowListener,
 		}
 	}
 
+	// ── MDI desktop embedding ────────────────────────────────────────────────
+
+	/** Overridden to embed into MorphoDesktop instead of showing as OS window. */
+	@Override
+	public void show() {
+		MorphoDesktop desk = MorphoDesktop.getInstance();
+		if (desk != null && imp != null && !Interpreter.isBatchMode()) {
+			desk.embedImageWindow(this);
+		} else {
+			super.show();
+		}
+	}
+
 	private void setLocationAndSize(boolean updating) {
 		if (imp==null)
 			return;

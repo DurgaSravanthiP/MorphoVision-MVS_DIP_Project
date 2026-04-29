@@ -170,9 +170,15 @@ public class ImageJ extends Frame implements ActionListener,
 		toolbar.addKeyListener(this);
 		add("North", toolbar);
 
-		// Splash panel – background + circles + logo (Centre)
-		SplashPanel splashPanel = new SplashPanel();
-		add("Center", splashPanel);
+		// MDI Desktop – single workspace where all images/results appear
+		MorphoDesktop desktop = new MorphoDesktop();
+		MorphoDesktop.setInstance(desktop);
+		// Wrap in a JScrollPane so the desktop can scroll if needed
+		javax.swing.JScrollPane desktopScroll = new javax.swing.JScrollPane(desktop,
+			javax.swing.JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+			javax.swing.JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		desktopScroll.setBorder(null);
+		add("Center", desktopScroll);
 
 		// Status bar
 		statusBar = new Panel();
