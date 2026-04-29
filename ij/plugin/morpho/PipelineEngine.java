@@ -25,12 +25,12 @@ public class PipelineEngine {
     }
 
     // ── Parameters ─────────────────────────────────────────────────────────
-    private double  gaussianSigma     = 1.0;     // lower = less blurring
-    private boolean doBackgroundSub   = false;   // OFF by default for bright-bg images
+    private double  gaussianSigma     = 2.0;     // higher = better removal of specular highlights
+    private boolean doBackgroundSub   = false;
     private double  rollingBallRadius = 50.0;
     private String  thresholdMethod   = "Otsu";
     private int     manualThreshold   = 128;
-    private double  minParticleSize   = 1.0;     // px² – catch everything
+    private double  minParticleSize   = -1;      // -1 = auto (0.05% of image area)
     private double  maxParticleSize   = Double.MAX_VALUE;
     private double  minCircularity    = 0.0;
     private double  nmPerPixel        = 1.0;
@@ -61,64 +61,63 @@ public class PipelineEngine {
             }
             ImageProcessor ip = work.getProcessor();
 
-            // ── Step 2: Pre-process ────────────────────────────────────────
-            cb.onStep(2, "Pre-processing (Gaussian blur" +
-                    (doBackgroundSub ? " + background subtraction" : "") + ")…");
+            // Auto min size: 0.05% of image area (filters noise, keeps real particles)
+            double autoMin = Math.max(20.0, ip.getWidth() * ip.getHeight() * 0.0005);
+            double effectiveMinSize = (minParticleSize <= 0) ? autoMin : minParticleSize;
 
-            // Light Gaussian to reduce noise
+            // ── Step 2: Pre-process ────────────────────────────────────────
+            cb.onStep(2, "Pre-processing: Gaussian blur (σ=" + gaussianSigma +
+                    ") to smooth specular highlights…");
             if (gaussianSigma > 0) {
                 new GaussianBlur().blurGaussian(ip, gaussianSigma, gaussianSigma, 0.01);
             }
-            // Background subtraction only if requested
             if (doBackgroundSub) {
                 new BackgroundSubtracter().rollingBallBackground(
                         ip, rollingBallRadius, false, false, false, false, false);
             }
 
             // ── Step 3: Threshold ──────────────────────────────────────────
-            cb.onStep(3, "Applying threshold (" + thresholdMethod + ")…");
+            boolean brightBg = detectBrightBackground(ip);
+            cb.onStep(3, "Threshold: " + thresholdMethod + " | background=" +
+                    (brightBg ? "BRIGHT (brightfield)" : "DARK (fluorescence)"));
+            if (brightBg) ip.invert();
 
-            // Detect whether background is bright or dark by sampling image edges
-            boolean brightBackground = detectBrightBackground(ip);
-            cb.onStep(3, "Threshold: background detected as " +
-                    (brightBackground ? "BRIGHT (brightfield)" : "DARK (fluorescence)") + "…");
-
-            // For bright backgrounds, invert so particles become white
-            if (brightBackground) {
-                ip.invert();
-            }
-
-            // Compute threshold
-            int thresh;
-            if ("Manual".equalsIgnoreCase(thresholdMethod)) {
-                thresh = manualThreshold;
-            } else {
-                int[] hist = ip.getHistogram();
-                thresh = new AutoThresholder()
-                        .getThreshold(AutoThresholder.Method.Otsu, hist);
-            }
+            int thresh = "Manual".equalsIgnoreCase(thresholdMethod)
+                    ? manualThreshold
+                    : new AutoThresholder().getThreshold(AutoThresholder.Method.Otsu, ip.getHistogram());
             ip.threshold(thresh);
             work.updateAndDraw();
 
-            // ── Step 4: Detect particles (with watershed) ──────────────────
-            cb.onStep(4, "Applying watershed separation for touching particles…");
-            // Watershed splits touching particles – critical for accuracy
+            // ── Step 4: Binary clean-up + watershed ───────────────────────
+            cb.onStep(4, "Filling holes (removes internal highlights/reflections)…");
+            // CRITICAL: Fill holes BEFORE watershed.
+            // Specular highlights inside particles create holes → watershed splits them.
+            // Fill Holes closes these, making each particle one solid region.
+            IJ.run(work, "Fill Holes", "");
+
+            cb.onStep(4, "Morphological closing (connect broken particle boundaries)…");
+            // One pass of dilation then erosion to close small gaps
+            IJ.run(work, "Dilate", "");
+            IJ.run(work, "Erode",  "");
+
+            cb.onStep(4, "Watershed separation for touching particles…");
+            // Now safe: particles are solid, so watershed only splits truly touching ones
             IJ.run(work, "Watershed", "");
 
-            cb.onStep(4, "Detecting particles with ParticleAnalyzer…");
+            cb.onStep(4, "Running ParticleAnalyzer (min=" +
+                    String.format("%.0f", effectiveMinSize) + " px²)…");
+
             ResultsTable rt = new ResultsTable();
             int measurements = Measurements.AREA | Measurements.PERIMETER |
                     Measurements.SHAPE_DESCRIPTORS | Measurements.FERET |
                     Measurements.ELLIPSE | Measurements.MEAN;
-
-            // SHOW_OVERLAY_OUTLINES adds coloured outlines to the image
-            // No EXCLUDE_EDGE_PARTICLES so nothing is missed
             int options = ParticleAnalyzer.SHOW_OVERLAY_OUTLINES |
                           ParticleAnalyzer.CLEAR_WORKSHEET;
 
             ParticleAnalyzer pa = new ParticleAnalyzer(options, measurements,
-                    rt, minParticleSize, maxParticleSize, minCircularity, 1.0);
+                    rt, effectiveMinSize, maxParticleSize, minCircularity, 1.0);
             pa.analyze(work);
+
 
             // ── Step 5: Extract measurements ──────────────────────────────
             cb.onStep(5, "Extracting geometry and applying scale (1 px = " +

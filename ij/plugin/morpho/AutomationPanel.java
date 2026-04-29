@@ -228,7 +228,7 @@ public class AutomationPanel extends JInternalFrame {
         JPanel p = new JPanel(new GridLayout(2, 2, 8, 4));
         p.setOpaque(false);
         p.add(label("Gaussian σ (0=skip):", SUBTEXT));
-        sigmaField = field("1.0");
+        sigmaField = field("2.0");
         p.add(sigmaField);
         bgSubCheck = new JCheckBox("Background Subtraction (for uneven lighting)", false);
         bgSubCheck.setForeground(SUBTEXT);
@@ -256,11 +256,11 @@ public class AutomationPanel extends JInternalFrame {
     private JPanel buildStep4Controls() {
         JPanel p = new JPanel(new GridLayout(1, 4, 8, 4));
         p.setOpaque(false);
-        p.add(label("Min size (px²):", SUBTEXT));
-        minSizeField = field("1");
+        p.add(label("Min size px² (-1=auto):", SUBTEXT));
+        minSizeField = field("-1");
         p.add(minSizeField);
-        p.add(label("Watershed: AUTO ✅", new Color(40, 180, 90)));
-        p.add(label("(splits touching particles)", SUBTEXT));
+        p.add(label("Fill Holes + Watershed: AUTO ✅", new Color(40, 180, 90)));
+        p.add(label("(prevents over-splitting from internal reflections)", SUBTEXT));
         return p;
     }
 
