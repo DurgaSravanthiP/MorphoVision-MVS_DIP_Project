@@ -10,6 +10,9 @@ public class MDIImageFrame extends JInternalFrame {
 
     private final ImageWindow imageWin;
     private ImageCanvas ic;
+
+    // ClearPanel fills black before painting children, preventing ghost artifacts
+    // because ImageCanvas overrides update() to skip clearRect()
     private Panel awtHost;
 
     public MDIImageFrame(ImageWindow win) {
@@ -20,8 +23,20 @@ public class MDIImageFrame extends JInternalFrame {
         getContentPane().setLayout(new BorderLayout());
         getContentPane().setBackground(Color.black);
 
-        // AWT bridge – null layout so WE fully control canvas bounds
-        awtHost = new Panel(null);
+        // AWT bridge: anonymous Panel that clears itself before children paint
+        awtHost = new Panel(null) {
+            @Override
+            public void paint(Graphics g) {
+                // Clear background so old canvas content doesn't bleed through
+                g.setColor(Color.black);
+                g.fillRect(0, 0, getWidth(), getHeight());
+                super.paint(g);   // paints child components (ic)
+            }
+            @Override
+            public void update(Graphics g) {
+                paint(g);         // same clearing behaviour on update
+            }
+        };
         awtHost.setBackground(Color.black);
 
         win.remove(ic);
@@ -38,22 +53,19 @@ public class MDIImageFrame extends JInternalFrame {
 
         getContentPane().add(awtHost, BorderLayout.CENTER);
 
-        // When the canvas peer is created → fit image
+        // Fit image as soon as AWT peer is ready
         ic.addHierarchyListener(e -> {
-            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && ic.isShowing()) {
+            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && ic.isShowing())
                 SwingUtilities.invokeLater(this::fitImage);
-            }
         });
 
-        // Re-fit on every resize of the internal frame
         addComponentListener(new ComponentAdapter() {
             @Override public void componentResized(ComponentEvent e) { fitImage(); }
         });
 
         addInternalFrameListener(new InternalFrameAdapter() {
             @Override public void internalFrameOpened(InternalFrameEvent e) {
-                doFitLater(150);
-                doFitLater(500);
+                doFitLater(150); doFitLater(500);
             }
             @Override public void internalFrameActivated(InternalFrameEvent e) {
                 if (!imageWin.isClosed()) WindowManager.setCurrentWindow(imageWin);
@@ -66,10 +78,9 @@ public class MDIImageFrame extends JInternalFrame {
             }
         });
 
-        // ── Scroll wheel: zoom in/out without resizing the canvas ──────────────
-        // We NEVER call ic.zoomIn/zoomOut because those call setSize() on the
-        // canvas, shrinking it and leaving ghost-image paint artifacts.
-        // Instead we directly set magnification + srcRect.
+        // ── Scroll wheel zoom ────────────────────────────────────────────────
+        // We do NOT call ic.zoomIn/zoomOut — those resize the canvas causing
+        // ghost images. We manually update magnification + srcRect instead.
         MouseWheelListener zoom = e -> {
             if (ic == null || imageWin == null) return;
             ImagePlus imp = imageWin.getImagePlus();
@@ -82,33 +93,36 @@ public class MDIImageFrame extends JInternalFrame {
             int imgW = imp.getWidth();
             int imgH = imp.getHeight();
 
-            // Step magnification using ImageJ's own zoom levels
+            // Pick next ImageJ zoom level
             double cur = ic.getMagnification();
             double newMag = (e.getWheelRotation() < 0)
-                ? ImageCanvas.getHigherZoomLevel(cur)
-                : ImageCanvas.getLowerZoomLevel(cur);
+                    ? ImageCanvas.getHigherZoomLevel(cur)
+                    : ImageCanvas.getLowerZoomLevel(cur);
 
-            // Don't zoom out beyond fit-to-window
+            // Don't zoom out past fit-to-frame
             double minMag = Math.min((double) avW / imgW, (double) avH / imgH);
             if (newMag < minMag) newMag = minMag;
+            if (newMag > 32.0)   newMag = 32.0;
 
-            // Keep the center of the current view stable
+            // Compute new srcRect centred on current view centre
             Rectangle src = ic.getSrcRect();
             double cx = src.x + src.width  / 2.0;
             double cy = src.y + src.height / 2.0;
-
-            int newSrcW = Math.min((int)(avW / newMag), imgW);
-            int newSrcH = Math.min((int)(avH / newMag), imgH);
+            int newSrcW = Math.min((int) Math.ceil(avW / newMag), imgW);
+            int newSrcH = Math.min((int) Math.ceil(avH / newMag), imgH);
             int newX = (int)(cx - newSrcW / 2.0);
             int newY = (int)(cy - newSrcH / 2.0);
             newX = Math.max(0, Math.min(newX, imgW - newSrcW));
             newY = Math.max(0, Math.min(newY, imgH - newSrcH));
 
-            // Apply – canvas stays pinned to full frame size
+            // Apply – canvas always fills the frame
             ic.setMagnification(newMag);
             src.setBounds(newX, newY, newSrcW, newSrcH);
-            ic.setBounds(0, 0, avW, avH);   // keep canvas at full size
-            awtHost.repaint();              // clear old pixels before redraw
+            ic.setBounds(0, 0, avW, avH);
+
+            // Clear stale content, then repaint
+            Graphics g = ic.getGraphics();
+            if (g != null) { g.setColor(Color.black); g.fillRect(0, 0, avW, avH); g.dispose(); }
             ic.repaint();
         };
         addMouseWheelListener(zoom);
@@ -116,9 +130,8 @@ public class MDIImageFrame extends JInternalFrame {
     }
 
     private void doFitLater(int ms) {
-        Timer t = new Timer(ms, ev -> { ((Timer)ev.getSource()).stop(); fitImage(); });
-        t.setRepeats(false);
-        t.start();
+        Timer t = new Timer(ms, ev -> { ((Timer) ev.getSource()).stop(); fitImage(); });
+        t.setRepeats(false); t.start();
     }
 
     private void fitImage() {
@@ -135,23 +148,18 @@ public class MDIImageFrame extends JInternalFrame {
         int imgH = imp.getHeight();
         if (imgW <= 0 || imgH <= 0) return;
 
-        // ── 1. Canvas fills the entire available area ──────────────────────
+        // Expand canvas to fill frame
         awtHost.setBounds(0, 0, avW, avH);
-        ic.setBounds(0, 0, avW, avH);   // null-layout parent → this sticks
+        ic.setBounds(0, 0, avW, avH);
 
-        // ── 2. Compute magnification manually (do NOT call fitToWindow –
-        //       it shrinks the canvas with setSize()) ──────────────────────
+        // Magnification to show full image
         double mag = Math.min((double) avW / imgW, (double) avH / imgH);
         if (mag <= 0) return;
 
         ic.setMagnification(mag);
-
-        // ── 3. Reset view to show the full image ───────────────────────────
         Rectangle src = ic.getSrcRect();
-        src.x = 0; src.y = 0;
-        src.width = imgW; src.height = imgH;
+        src.x = 0; src.y = 0; src.width = imgW; src.height = imgH;
 
-        // ── 4. Repaint ──────────────────────────────────────────────────────
         ic.repaint();
         awtHost.repaint();
         repaint();
