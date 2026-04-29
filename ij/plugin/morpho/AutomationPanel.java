@@ -140,16 +140,23 @@ public class AutomationPanel extends JInternalFrame {
         return p;
     }
 
+    private static final String[] CHART_TITLES = {
+        "Area Distribution", "Circularity Distribution",
+        "Aspect Ratio Distribution", "Area vs Circularity Scatter"
+    };
+
     private void addPlaceholderCharts() {
         chartsPanel.removeAll();
-        String[] names = {"Area Distribution", "Circularity Distribution",
-                          "Aspect Ratio Distribution", "Area vs Circularity"};
-        for (String name : names) {
-            JLabel lbl = new JLabel(name + "\n(run pipeline to generate)", SwingConstants.CENTER);
+        for (String name : CHART_TITLES) {
+            JPanel card = new JPanel(new BorderLayout(0, 2));
+            card.setBackground(CARD_BG);
+            card.setBorder(BorderFactory.createLineBorder(new Color(70, 70, 85)));
+            JLabel lbl = new JLabel("<html><center>" + name + "<br><i>(run pipeline to generate)</i></center></html>",
+                    SwingConstants.CENTER);
             lbl.setForeground(SUBTEXT);
-            lbl.setFont(new Font("SansSerif", Font.ITALIC, 11));
-            lbl.setBorder(BorderFactory.createLineBorder(new Color(70, 70, 85)));
-            chartsPanel.add(lbl);
+            lbl.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            card.add(lbl, BorderLayout.CENTER);
+            chartsPanel.add(card);
         }
         chartsPanel.revalidate();
         chartsPanel.repaint();
@@ -157,16 +164,162 @@ public class AutomationPanel extends JInternalFrame {
 
     private void showCharts() {
         chartsPanel.removeAll();
-        for (BufferedImage chart : charts) {
-            JLabel img = new JLabel(new ImageIcon(chart.getScaledInstance(
-                    180, 130, Image.SCALE_SMOOTH)));
-            img.setBorder(BorderFactory.createLineBorder(new Color(70, 70, 85)));
-            chartsPanel.add(img);
+        for (int i = 0; i < charts.size(); i++) {
+            final int idx = i;
+            final BufferedImage chart = charts.get(i);
+            final String title = idx < CHART_TITLES.length ? CHART_TITLES[idx] : "Chart " + (idx + 1);
+
+            // ── Card ──────────────────────────────────────────────────────
+            JPanel card = new JPanel(new BorderLayout(0, 0));
+            card.setBackground(new Color(38, 38, 50));
+            card.setBorder(BorderFactory.createLineBorder(new Color(70, 70, 95), 1));
+
+            // Title bar with maximize button
+            JPanel titleBar = new JPanel(new BorderLayout());
+            titleBar.setBackground(new Color(30, 30, 45));
+            titleBar.setBorder(new EmptyBorder(3, 6, 3, 4));
+
+            JLabel titleLbl = new JLabel(title);
+            titleLbl.setForeground(new Color(180, 200, 240));
+            titleLbl.setFont(new Font("SansSerif", Font.BOLD, 10));
+
+            JButton maxBtn = new JButton("⤢");
+            maxBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
+            maxBtn.setBackground(new Color(45, 110, 200));
+            maxBtn.setForeground(Color.WHITE);
+            maxBtn.setFocusPainted(false);
+            maxBtn.setBorderPainted(false);
+            maxBtn.setPreferredSize(new Dimension(26, 20));
+            maxBtn.setToolTipText("Open " + title + " in full window");
+            maxBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            maxBtn.addActionListener(e -> openChartInWindow(title, chart));
+
+            titleBar.add(titleLbl, BorderLayout.CENTER);
+            titleBar.add(maxBtn,   BorderLayout.EAST);
+
+            // Thumbnail — also double-clickable to open
+            JLabel imgLbl = new JLabel(new ImageIcon(
+                    chart.getScaledInstance(176, 122, Image.SCALE_SMOOTH)));
+            imgLbl.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            imgLbl.setToolTipText("Double-click to open in full window");
+            imgLbl.addMouseListener(new MouseAdapter() {
+                @Override public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 2) openChartInWindow(title, chart);
+                }
+                @Override public void mouseEntered(MouseEvent e) {
+                    card.setBorder(BorderFactory.createLineBorder(
+                            new Color(45, 110, 200), 2));
+                }
+                @Override public void mouseExited(MouseEvent e) {
+                    card.setBorder(BorderFactory.createLineBorder(
+                            new Color(70, 70, 95), 1));
+                }
+            });
+
+            card.add(titleBar, BorderLayout.NORTH);
+            card.add(imgLbl,   BorderLayout.CENTER);
+            chartsPanel.add(card);
         }
         chartsPanel.revalidate();
         chartsPanel.repaint();
-        // Auto-switch to charts tab
         leftTabs.setSelectedIndex(1);
+    }
+
+    /**
+     * Opens a chart in a full-size JInternalFrame inside the MorphoDesktop.
+     * Shows the chart at full resolution with a clean dark background.
+     */
+    private void openChartInWindow(String title, BufferedImage chart) {
+        ij.gui.MorphoDesktop desk = ij.gui.MorphoDesktop.getInstance();
+        if (desk == null) {
+            // Fallback: show in a JDialog
+            JDialog dlg = new JDialog();
+            dlg.setTitle("📊 " + title);
+            dlg.setModal(false);
+            dlg.getContentPane().setBackground(new Color(28, 28, 34));
+            dlg.getContentPane().add(new JLabel(new ImageIcon(chart)));
+            dlg.pack();
+            dlg.setLocationRelativeTo(this);
+            dlg.setVisible(true);
+            return;
+        }
+
+        // Create a premium chart window as a JInternalFrame
+        JInternalFrame chartFrame = new JInternalFrame(
+                "📊  " + title, true, true, true, true);
+        chartFrame.setBackground(new Color(28, 28, 34));
+
+        JPanel content = new JPanel(new BorderLayout(0, 0));
+        content.setBackground(new Color(20, 20, 28));
+
+        // Toolbar row
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
+        toolbar.setBackground(new Color(30, 30, 45));
+        JLabel titleLbl = new JLabel("  📊  " + title);
+        titleLbl.setForeground(new Color(180, 200, 240));
+        titleLbl.setFont(new Font("SansSerif", Font.BOLD, 13));
+        JButton saveBtn = new JButton("💾 Save PNG");
+        saveBtn.setBackground(new Color(55, 55, 65));
+        saveBtn.setForeground(new Color(220, 220, 230));
+        saveBtn.setFocusPainted(false);
+        saveBtn.setBorderPainted(false);
+        saveBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        saveBtn.addActionListener(e -> saveChartPNG(title, chart));
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        left.setOpaque(false);
+        left.add(titleLbl);
+        toolbar.add(left);
+        toolbar.add(saveBtn);
+        JPanel toolbarRow = new JPanel(new BorderLayout());
+        toolbarRow.setBackground(new Color(30, 30, 45));
+        toolbarRow.add(left, BorderLayout.WEST);
+        toolbarRow.add(saveBtn, BorderLayout.EAST);
+
+        // Chart image — scaled to fill the window nicely
+        JLabel chartLbl = new JLabel(new ImageIcon(chart)) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                        RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2.setColor(new Color(20, 20, 28));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                // Scale image to fill component keeping aspect ratio
+                int iw = chart.getWidth(), ih = chart.getHeight();
+                double scale = Math.min((double) getWidth() / iw, (double) getHeight() / ih);
+                int dw = (int)(iw * scale), dh = (int)(ih * scale);
+                g2.drawImage(chart, (getWidth() - dw) / 2, (getHeight() - dh) / 2, dw, dh, null);
+            }
+        };
+        chartLbl.setPreferredSize(new Dimension(chart.getWidth(), chart.getHeight()));
+
+        content.add(toolbarRow, BorderLayout.NORTH);
+        content.add(chartLbl,   BorderLayout.CENTER);
+
+        chartFrame.setContentPane(content);
+
+        // Size and position inside desktop
+        int dw = desk.getWidth(), dh = desk.getHeight();
+        int fw = Math.min(720, (int)(dw * 0.65));
+        int fh = Math.min(520, (int)(dh * 0.65));
+        int offset = (int)(Math.random() * 60);
+        chartFrame.setBounds(offset + 20, offset + 20, fw, fh);
+
+        desk.add(chartFrame);
+        chartFrame.setVisible(true);
+        try { chartFrame.setSelected(true); } catch (Exception ignored) {}
+    }
+
+    private void saveChartPNG(String title, BufferedImage chart) {
+        JFileChooser fc = new JFileChooser();
+        fc.setSelectedFile(new File(title.replace(" ", "_") + ".png"));
+        if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try {
+                javax.imageio.ImageIO.write(chart, "png", fc.getSelectedFile());
+                log("✅ Chart saved: " + fc.getSelectedFile().getName());
+                JOptionPane.showMessageDialog(this, "Chart saved as PNG!",
+                        "Saved", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) { log("❌ Save error: " + ex.getMessage()); }
+        }
     }
 
     // ── Right panel: pipeline steps ──────────────────────────────────────────
