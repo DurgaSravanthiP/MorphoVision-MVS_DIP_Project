@@ -159,6 +159,11 @@ public class ImageJ extends Frame implements ActionListener,
 		embedded = applet==null && (mode==EMBEDDED||mode==NO_SHOW);
 		this.applet = applet;
 		String err1 = Prefs.load(this, applet);
+		// Use Metal L&F so JInternalFrame title-bar buttons are always visible
+		try {
+			javax.swing.UIManager.setLookAndFeel(
+				"javax.swing.plaf.metal.MetalLookAndFeel");
+		} catch (Exception ignored) {}
 		setBackground(backgroundColor);
 		Menus m = new Menus(this, applet);
 		String err2 = m.addMenuBar();

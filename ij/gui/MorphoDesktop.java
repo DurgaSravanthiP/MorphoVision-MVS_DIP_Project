@@ -3,207 +3,208 @@ package ij.gui;
 import ij.*;
 import ij.text.TextWindow;
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicInternalFrameUI;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
 
 /**
- * MorphoDesktop – a JDesktopPane that acts as the single MDI workspace.
- * All ImageWindows and TextWindows are embedded here as JInternalFrames
- * instead of opening as separate OS windows.
- *
- * Layout inside ImageJ's main Frame:
- *   CENTER  → this JDesktopPane (image workspace)
- *   EAST    → docked results/log panel (split off when TextWindows appear)
+ * MorphoDesktop – single MDI workspace.
+ * • All ImageWindows / TextWindows appear as JInternalFrames here.
+ * • Minimised frames dock to a task-bar at the bottom of the desktop.
+ * • Buttons (─ □ ✕) are always visible via Metal L&F + UIManager colours.
  */
 public class MorphoDesktop extends JDesktopPane {
 
     private static MorphoDesktop instance;
-
-    /** Dock panel on the right for Results / Log */
-    private JPanel dockPanel;
-    private JSplitPane splitPane;
-
-    // Background splash drawn when no images are open
-    private SplashPanel splashBg;
-
-    // Map from AWT Frame → JInternalFrame so we can sync close events
     private final Map<Frame, JInternalFrame> frameMap = new LinkedHashMap<>();
 
-    // ── Singleton ────────────────────────────────────────────────────────────
+    // ── Singleton ─────────────────────────────────────────────────────────────
+    public static MorphoDesktop getInstance()              { return instance; }
+    public static void setInstance(MorphoDesktop d)        { instance = d; }
 
-    public static MorphoDesktop getInstance() {
-        return instance;
-    }
-
-    public static void setInstance(MorphoDesktop d) {
-        instance = d;
-    }
-
-    // ── Constructor ──────────────────────────────────────────────────────────
-
+    // ── Constructor ───────────────────────────────────────────────────────────
     public MorphoDesktop() {
-        setBackground(new Color(30, 30, 35));  // dark desktop background
+        instance = this;
+        setBackground(new Color(28, 28, 32));
         setDragMode(JDesktopPane.OUTLINE_DRAG_MODE);
 
-        // Draw splash background when the desktop is empty
-        splashBg = new SplashPanel() {
-            @Override public boolean isOpaque() { return false; }
-        };
-        splashBg.setBackground(new Color(0, 0, 0, 0));
-        setLayout(null);  // manual layout for internal frames
-        instance = this;
+        // Style InternalFrame title bars so buttons are always visible
+        styleInternalFrameUI();
 
-        // Mouse-wheel on the desktop → zoom active image
+        // Custom desktop manager that docks minimised icons at the bottom
+        setDesktopManager(new BottomDockManager(this));
+
+        // Scroll-wheel on empty desktop → zoom active image
         addMouseWheelListener(e -> {
-            JInternalFrame active = getSelectedFrame();
-            if (active instanceof MDIImageFrame) {
-                MDIImageFrame mif = (MDIImageFrame) active;
-                ImageCanvas ic = mif.getImageCanvas();
+            JInternalFrame f = getSelectedFrame();
+            if (f instanceof MDIImageFrame) {
+                ImageCanvas ic = ((MDIImageFrame) f).getImageCanvas();
                 if (ic != null) {
-                    boolean ctrl = (e.getModifiersEx() & InputEvent.CTRL_DOWN_MASK) != 0;
-                    int rot = e.getWheelRotation();
-                    if (rot < 0) ic.zoomIn(ic.getWidth()/2, ic.getHeight()/2);
-                    else          ic.zoomOut(ic.getWidth()/2, ic.getHeight()/2);
+                    int cx = ic.getWidth() / 2, cy = ic.getHeight() / 2;
+                    if (e.getWheelRotation() < 0) ic.zoomIn(cx, cy);
+                    else                           ic.zoomOut(cx, cy);
                 }
             }
         });
     }
 
-    // ── Embed an ImageWindow ─────────────────────────────────────────────────
+    // ── UIManager styling ──────────────────────────────────────────────────────
+    private static void styleInternalFrameUI() {
+        // Title bar colours (active)
+        UIManager.put("InternalFrame.activeTitleBackground",  new Color(45, 90, 160));
+        UIManager.put("InternalFrame.activeTitleForeground",  Color.WHITE);
+        // Title bar colours (inactive)
+        UIManager.put("InternalFrame.inactiveTitleBackground", new Color(70, 70, 80));
+        UIManager.put("InternalFrame.inactiveTitleForeground", new Color(200, 200, 200));
+        // Font
+        UIManager.put("InternalFrame.titleFont",
+                new Font("SansSerif", Font.BOLD, 12));
+        // Button colours – ensures they are visible on the dark title bar
+        UIManager.put("InternalFrame.closeIcon",    makeIcon("✕"));
+        UIManager.put("InternalFrame.minimizeIcon", makeIcon("─"));
+        UIManager.put("InternalFrame.maximizeIcon", makeIcon("□"));
+        UIManager.put("InternalFrame.restoreUpIcon",makeIcon("❐"));
+        // Border
+        UIManager.put("InternalFrame.border",
+                BorderFactory.createLineBorder(new Color(60, 60, 80), 1));
+        // Icon (minimised) title bar
+        UIManager.put("InternalFrameTitlePane.closeButtonToolTip",    "Close");
+        UIManager.put("InternalFrameTitlePane.minimizeButtonToolTip", "Minimize");
+        UIManager.put("InternalFrameTitlePane.maximizeButtonToolTip", "Maximize");
+    }
 
-    /**
-     * Hides the given AWT ImageWindow and wraps its canvas in a
-     * JInternalFrame on this desktop.
-     */
+    /** Creates a simple text-based icon for the title-bar buttons. */
+    private static Icon makeIcon(String symbol) {
+        return new Icon() {
+            @Override public int getIconWidth()  { return 16; }
+            @Override public int getIconHeight() { return 16; }
+            @Override public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("SansSerif", Font.BOLD, 11));
+                FontMetrics fm = g2.getFontMetrics();
+                int tx = x + (16 - fm.stringWidth(symbol)) / 2;
+                int ty = y + (16 + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(symbol, tx, ty);
+                g2.dispose();
+            }
+        };
+    }
+
+    // ── Embed ImageWindow ──────────────────────────────────────────────────────
     public MDIImageFrame embedImageWindow(ImageWindow win) {
         if (frameMap.containsKey(win)) {
-            JInternalFrame existing = frameMap.get(win);
-            try { existing.setSelected(true); } catch (Exception ignored) {}
-            return (MDIImageFrame) existing;
+            JInternalFrame ex = frameMap.get(win);
+            try { ex.setIcon(false); ex.setSelected(true); } catch (Exception ignored) {}
+            return (MDIImageFrame) ex;
         }
 
         MDIImageFrame mif = new MDIImageFrame(win);
         frameMap.put(win, mif);
 
-        // Place the new internal frame cascaded
-        int offset = frameMap.size() * 24;
-        int w = Math.min(600, getWidth() - offset - 40);
-        int h = Math.min(460, getHeight() - offset - 40);
-        if (w < 200) w = 400;
-        if (h < 150) h = 300;
+        int offset = (frameMap.size() - 1) % 8 * 24;
+        int w = Math.max(400, getWidth()  - offset - 20);
+        int h = Math.max(300, getHeight() - offset - 60); // leave room for dock bar
         mif.setBounds(offset, offset, w, h);
 
         add(mif);
         mif.setVisible(true);
         try { mif.setSelected(true); } catch (Exception ignored) {}
 
-        // Hide the original OS window
         win.setVisible(false);
-
         repaint();
         return mif;
     }
 
-    /** Called when an MDIImageFrame is closed — removes from map. */
-    public void unregister(Frame win) {
-        frameMap.remove(win);
-        repaint();
-    }
-
-    // ── Embed a TextWindow (Results / Log) ───────────────────────────────────
-
-    /**
-     * Wraps a TextWindow as a JInternalFrame docked inside the desktop.
-     */
+    // ── Embed TextWindow (Results / Log) ───────────────────────────────────────
     public void embedTextWindow(Frame win) {
         if (frameMap.containsKey(win)) {
-            JInternalFrame existing = frameMap.get(win);
-            existing.toFront();
-            try { existing.setSelected(true); } catch (Exception ignored) {}
+            JInternalFrame ex = frameMap.get(win);
+            ex.toFront();
+            try { ex.setIcon(false); ex.setSelected(true); } catch (Exception ignored) {}
             return;
         }
-
-        // Remove the AWT content and re-embed in a JInternalFrame
         win.setVisible(false);
 
         JInternalFrame jif = new JInternalFrame(win.getTitle(), true, true, true, true);
         jif.setLayout(new BorderLayout());
-
-        // Move all components from the Frame into the JInternalFrame
         Component[] comps = win.getComponents();
-        for (Component c : comps) {
-            win.remove(c);
-            jif.getContentPane().add(c, BorderLayout.CENTER);
-        }
-
+        for (Component c : comps) { win.remove(c); jif.getContentPane().add(c); }
         frameMap.put(win, jif);
 
-        // Position in the bottom-right corner of the desktop
         int dw = Math.max(400, getWidth() / 3);
-        int dh = Math.max(200, getHeight() / 3);
-        int dx = Math.max(0, getWidth() - dw - 10);
-        int dy = Math.max(0, getHeight() - dh - 10);
-        jif.setBounds(dx, dy, dw, dh);
+        int dh = Math.max(220, getHeight() / 3);
+        jif.setBounds(getWidth() - dw - 10, getHeight() - dh - 60, dw, dh);
 
         add(jif);
         jif.setVisible(true);
         try { jif.setSelected(true); } catch (Exception ignored) {}
 
-        // Keep the TextWindow's close logic wired up
         jif.addInternalFrameListener(new javax.swing.event.InternalFrameAdapter() {
-            @Override
-            public void internalFrameClosing(javax.swing.event.InternalFrameEvent e) {
-                if (win instanceof TextWindow)
-                    ((TextWindow) win).close();
-                else
-                    win.dispose();
+            @Override public void internalFrameClosing(javax.swing.event.InternalFrameEvent e) {
+                if (win instanceof TextWindow) ((TextWindow) win).close();
+                else win.dispose();
                 frameMap.remove(win);
             }
         });
     }
 
-    // ── Paint background splash when desktop is empty ────────────────────────
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        if (frameMap.isEmpty()) {
-            // Draw the splash when no images/panels are open
-            splashBg.setSize(getWidth(), getHeight());
-            splashBg.paint(g);
-        }
+    public void unregister(Frame win) {
+        frameMap.remove(win);
+        repaint();
     }
 
-    // ── Tile / Cascade helpers (called from Window menu) ─────────────────────
-
+    // ── Tile / Cascade ─────────────────────────────────────────────────────────
     public void tileWindows() {
         JInternalFrame[] frames = getAllFrames();
         int n = frames.length;
         if (n == 0) return;
         int cols = (int) Math.ceil(Math.sqrt(n));
         int rows = (int) Math.ceil((double) n / cols);
-        int w = getWidth() / cols;
-        int h = getHeight() / rows;
+        int w = getWidth() / cols, h = (getHeight() - 40) / rows;
         int i = 0;
-        for (int r = 0; r < rows; r++) {
+        for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols && i < n; c++, i++) {
-                frames[i].setBounds(c * w, r * h, w, h);
                 try { frames[i].setIcon(false); frames[i].setMaximum(false); } catch (Exception ignored) {}
+                frames[i].setBounds(c * w, r * h, w, h);
             }
-        }
     }
 
-    public void cascadeWindows() {
-        JInternalFrame[] frames = getAllFrames();
-        int offset = 24;
-        for (int i = 0; i < frames.length; i++) {
-            int x = i * offset;
-            int y = i * offset;
-            int w = Math.max(300, getWidth() - x - 20);
-            int h = Math.max(200, getHeight() - y - 20);
-            frames[i].setBounds(x, y, w, h);
-            try { frames[i].setIcon(false); frames[i].setMaximum(false); } catch (Exception ignored) {}
+    // ── Custom DesktopManager: dock minimised icons at bottom ──────────────────
+    static class BottomDockManager extends DefaultDesktopManager {
+
+        private static final int ICON_W = 160;
+        private static final int ICON_H = 32;
+        private final JDesktopPane desk;
+
+        BottomDockManager(JDesktopPane desk) { this.desk = desk; }
+
+        @Override
+        public void iconifyFrame(JInternalFrame f) {
+            super.iconifyFrame(f);
+            SwingUtilities.invokeLater(this::repositionIcons);
+        }
+
+        @Override
+        public void deiconifyFrame(JInternalFrame f) {
+            super.deiconifyFrame(f);
+            SwingUtilities.invokeLater(this::repositionIcons);
+        }
+
+        /** Lays out all minimised icons along the bottom of the desktop. */
+        void repositionIcons() {
+            int deskH = desk.getHeight();
+            int x = 0;
+            for (JInternalFrame f : desk.getAllFrames()) {
+                if (f.isIcon()) {
+                    JInternalFrame.JDesktopIcon icon = f.getDesktopIcon();
+                    icon.setBounds(x, deskH - ICON_H, ICON_W, ICON_H);
+                    x += ICON_W + 2;
+                }
+            }
         }
     }
 }
