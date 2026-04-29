@@ -1,44 +1,47 @@
 # MorphoVision-MVS (Microparticle Visualization System)
 
-[![Build Status](https://github.com/shruthideepikareddy/MorphoVision-MVS/actions/workflows/build.yml/badge.svg)](https://github.com/shruthideepikareddy/MorphoVision-MVS/actions/workflows/build.yml)
+MorphoVision-MVS is a specialized research dashboard designed for high-precision morphological analysis of microparticles. It transforms the professional ImageJ engine into a one-click automated pipeline for materials science and pharmaceutical research.
 
-MorphoVision-MVS is a specialized research dashboard built on the ImageJ framework, designed for high-precision morphological analysis of microparticles. It provides an end-to-end workflow from image acquisition to interactive data visualization.
+## ⚡ Key Features
 
-## Key Features
+- **Automated Research Pipeline**: One-click detection, measurement, and reporting.
+- **Unique Morphological Metrics**: Reports 14+ geometric parameters, including unique research metrics:
+  - **Heywood Circularity Factor**: Standard for pharmaceutical particle analysis.
+  - **PA Fractal Dimension**: Measures boundary roughness of SEM particles.
+  - **Solidity & Elongation**: Advanced detection of agglomerates and fibers.
+- **Automatic Classifier**: Uses AI-logic to classify particles into *Spherical, Near-Spherical, Elongated, Irregular, or Agglomerate*.
+- **Interactive Analytics**: 8 real-time distribution charts with "Expand to Window" capability.
+- **Professional Reports**: Generates self-contained HTML reports and CSV data for publications.
 
-- **Unified Research Dashboard**: A streamlined UI (MorphoWizard) for managing the entire analysis pipeline.
-- **Advanced Particle Analysis**: Automated detection and measurement of geometric properties including Area, Perimeter, Circularity, Curvature, and Fractal dimensions.
-- **Interactive Visualization**: Real-time plotting and distribution analysis of morphological metrics using the integrated MorphoPlotter.
-- **Premium Design**: Modern, theme-aware interface (MorphoTheme) optimized for research environments.
+## 🚀 How to Run
 
-## Getting Started
-
-### Prerequisites
-
-It is recommended to build MorphoVision-MVS with OpenJDK 8 or 11.
-
-### Building from Source
-
-#### With Maven
+### Quick Start (Run the App)
+If you have the repository cloned, simply run:
 ```bash
-mvn clean install
-mvn -Pexec
+java -jar ij.jar
 ```
 
-#### With Ant
-The [Apache Ant](https://ant.apache.org/) utility can also be used to compile and run the project using the `build.xml` file.
+### Build from Source
+If you wish to compile the code yourself:
+1. **Compile**:
+   ```bash
+   mkdir build
+   javac --release 11 -d build ij/ImageJ.java
+   ```
+2. **Package & Run**:
+   ```bash
+   jar cfm ij.jar MANIFEST.MF -C build .
+   java -jar ij.jar
+   ```
 
-## Usage
+## 🔬 Usage Guide
 
-1. **Launch the Wizard**: Start ImageJ and navigate to the MorphoVision Research Wizard.
-2. **Load Image**: Open your microparticle micrographs.
-3. **Pre-process**: Adjust thresholds and filters to isolate particles.
-4. **Analyze**: Run the MorphoAnalysis to calculate geometric metrics.
-5. **Visualize**: Explore the results via interactive distribution plots and results tables.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. **Launch**: Click the **⚡ Automate Your Work** button in the top toolbar.
+2. **Load**: Browse for your SEM/Microscopy image or use the currently open one.
+3. **Select Mode**: Choose **SEM**, **Brightfield**, or **Fluorescence** (MorphoVision will auto-tune the filters).
+4. **Run**: Click **Run Full Pipeline**.
+5. **Analyze**: Explore the **📊 Charts** tab. Double-click any chart to maximize it.
+6. **Export**: Save your data as a CSV or generate a full HTML Research Report.
 
 ---
 *This project is built upon the [ImageJ](https://imagej.nih.gov/ij/) open-source software.*
