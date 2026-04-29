@@ -17,7 +17,7 @@ public class MDIImageFrame extends JInternalFrame {
     private final ImageWindow imageWin;
     private ImageCanvas ic;
 
-    // Panel that wraps the AWT canvas for Swing embedding
+    // AWT Panel bridge (heavyweight inside Swing is safe from Java 6+)
     private Panel awtHost;
 
     public MDIImageFrame(ImageWindow win) {
@@ -25,27 +25,18 @@ public class MDIImageFrame extends JInternalFrame {
         this.imageWin = win;
         this.ic = win.getCanvas();
 
-        setBackground(new Color(45, 45, 50));
+        setBackground(new Color(30, 30, 35));
         getContentPane().setLayout(new BorderLayout());
 
-        // --- title bar / subtitle label ---
-        JLabel titleLabel = new JLabel(win.getTitle());
-        titleLabel.setForeground(new Color(220, 220, 220));
-        titleLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
-        titleLabel.setBackground(new Color(60, 60, 65));
-        titleLabel.setOpaque(true);
-
-        // Embed the AWT ImageCanvas into the Swing frame using a Panel bridge
-        // (AWT heavyweight inside Swing lightweight is safe from Java 6+)
+        // ── AWT host panel ──────────────────────────────────────────────────
         awtHost = new Panel(new BorderLayout());
         awtHost.setBackground(Color.black);
 
-        // Transfer the canvas from the original ImageWindow into our host panel
+        // Pull canvas out of the hidden ImageWindow and into our host
         win.remove(ic);
         awtHost.add(ic, BorderLayout.CENTER);
 
-        // If this is a StackWindow, also transfer the scrollbars
+        // Also move any scrollbars (StackWindow sliders) to SOUTH
         int count = win.getComponentCount();
         for (int i = 0; i < count; i++) {
             Component c = win.getComponent(i);
@@ -56,14 +47,30 @@ public class MDIImageFrame extends JInternalFrame {
         }
 
         getContentPane().add(awtHost, BorderLayout.CENTER);
-        getContentPane().add(titleLabel, BorderLayout.NORTH);
 
-        // ---- Internal frame listeners ----
+        // ── Resize: fit image to the frame whenever the frame is resized ────
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                fitImage();
+            }
+            @Override
+            public void componentShown(ComponentEvent e) {
+                fitImage();
+            }
+        });
+
+        // ── Internal frame events ────────────────────────────────────────────
         addInternalFrameListener(new InternalFrameAdapter() {
 
             @Override
+            public void internalFrameOpened(InternalFrameEvent e) {
+                // Defer so the layout has been realized first
+                SwingUtilities.invokeLater(() -> fitImage());
+            }
+
+            @Override
             public void internalFrameClosing(InternalFrameEvent e) {
-                // Delegate to ImageWindow.close() which handles unsaved-changes dialog
                 MorphoDesktop desk = MorphoDesktop.getInstance();
                 if (desk != null) desk.unregister(imageWin);
                 // Re-attach canvas so ImageWindow.close() can dispose properly
@@ -73,56 +80,53 @@ public class MDIImageFrame extends JInternalFrame {
 
             @Override
             public void internalFrameActivated(InternalFrameEvent e) {
-                // Notify WindowManager which image is active
                 if (!imageWin.isClosed())
                     WindowManager.setCurrentWindow(imageWin);
             }
-
-            @Override
-            public void internalFrameIconified(InternalFrameEvent e) {
-                // nothing special
-            }
         });
 
-        // Zoom with Ctrl+Scroll anywhere on the frame
+        // ── Ctrl+Scroll → zoom the image ─────────────────────────────────────
         MouseWheelListener zoomListener = e -> {
             if (ic == null) return;
             boolean ctrl = (e.getModifiersEx() & InputEvent.CTRL_DOWN_MASK) != 0;
-            if (ctrl || IJ.shiftKeyDown()) {
-                int rot = e.getWheelRotation();
-                int cx = ic.getWidth() / 2;
-                int cy = ic.getHeight() / 2;
-                if (rot < 0) ic.zoomIn(cx, cy);
-                else          ic.zoomOut(cx, cy);
-            }
+            // Always zoom with scroll inside the MDI frame (no Ctrl required)
+            int rot = e.getWheelRotation();
+            int cx = ic.getWidth() / 2;
+            int cy = ic.getHeight() / 2;
+            if (rot < 0) ic.zoomIn(cx, cy);
+            else          ic.zoomOut(cx, cy);
         };
         addMouseWheelListener(zoomListener);
         awtHost.addMouseWheelListener(zoomListener);
 
-        // Set icon from the main ImageJ frame if available
-        ImageJ ij = IJ.getInstance();
-        if (ij != null && !ij.getIconImages().isEmpty()) {
-            try { setFrameIcon(new ImageIcon(ij.getIconImages().get(0))); } catch (Exception ignored) {}
-        }
-
-        // Pack to a reasonable initial size based on the canvas
-        if (ic != null) {
-            Dimension canvasSize = ic.getPreferredSize();
-            int fw = Math.max(200, canvasSize.width + 20);
-            int fh = Math.max(150, canvasSize.height + 50);
-            setPreferredSize(new Dimension(fw, fh));
-        }
+        // ── Initial size: use most of the desktop ────────────────────────────
+        setPreferredSize(new Dimension(700, 520));
     }
 
-    public ImageCanvas getImageCanvas() {
-        return ic;
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Sizes the canvas to fill the host panel, then asks ImageJ to
+     * compute the correct magnification for that size.
+     */
+    private void fitImage() {
+        if (ic == null || !isVisible()) return;
+        Dimension hostSize = awtHost.getSize();
+        if (hostSize.width < 10 || hostSize.height < 10) return;
+
+        // Resize the canvas to fill the host panel
+        ic.setSize(hostSize.width, hostSize.height);
+        // Ask ImageJ to recalculate zoom so the whole image is visible
+        ic.fitToWindow();
+        // Force a repaint of both AWT and Swing layers
+        ic.repaint();
+        awtHost.repaint();
+        repaint();
     }
 
-    public ImageWindow getImageWindow() {
-        return imageWin;
-    }
+    public ImageCanvas getImageCanvas() { return ic; }
+    public ImageWindow getImageWindow() { return imageWin; }
 
-    /** Refreshes the subtitle label and frame title when image changes. */
     public void updateTitle() {
         if (imageWin != null && imageWin.getImagePlus() != null)
             setTitle(imageWin.getImagePlus().getTitle());
