@@ -106,8 +106,11 @@ public class MorphoDesktop extends JDesktopPane {
         frameMap.put(win, mif);
 
         int offset = (frameMap.size() - 1) % 8 * 24;
-        int w = Math.max(400, getWidth()  - offset - 20);
-        int h = Math.max(300, getHeight() - offset - 60); // leave room for dock bar
+        // Open at ~60 % of desktop – not covering everything
+        int w = (int)(getWidth()  * 0.60);
+        int h = (int)(getHeight() * 0.60) - 40;
+        if (w < 320) w = 320;
+        if (h < 240) h = 240;
         mif.setBounds(offset, offset, w, h);
 
         add(mif);

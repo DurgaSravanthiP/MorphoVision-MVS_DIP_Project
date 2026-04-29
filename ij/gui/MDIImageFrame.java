@@ -66,12 +66,50 @@ public class MDIImageFrame extends JInternalFrame {
             }
         });
 
-        // Scroll wheel zooms
+        // ── Scroll wheel: zoom in/out without resizing the canvas ──────────────
+        // We NEVER call ic.zoomIn/zoomOut because those call setSize() on the
+        // canvas, shrinking it and leaving ghost-image paint artifacts.
+        // Instead we directly set magnification + srcRect.
         MouseWheelListener zoom = e -> {
-            if (ic == null) return;
-            int cx = ic.getWidth() / 2, cy = ic.getHeight() / 2;
-            if (e.getWheelRotation() < 0) ic.zoomIn(cx, cy);
-            else ic.zoomOut(cx, cy);
+            if (ic == null || imageWin == null) return;
+            ImagePlus imp = imageWin.getImagePlus();
+            if (imp == null) return;
+
+            int avW = awtHost.getWidth();
+            int avH = awtHost.getHeight();
+            if (avW < 10 || avH < 10) return;
+
+            int imgW = imp.getWidth();
+            int imgH = imp.getHeight();
+
+            // Step magnification using ImageJ's own zoom levels
+            double cur = ic.getMagnification();
+            double newMag = (e.getWheelRotation() < 0)
+                ? ImageCanvas.getHigherZoomLevel(cur)
+                : ImageCanvas.getLowerZoomLevel(cur);
+
+            // Don't zoom out beyond fit-to-window
+            double minMag = Math.min((double) avW / imgW, (double) avH / imgH);
+            if (newMag < minMag) newMag = minMag;
+
+            // Keep the center of the current view stable
+            Rectangle src = ic.getSrcRect();
+            double cx = src.x + src.width  / 2.0;
+            double cy = src.y + src.height / 2.0;
+
+            int newSrcW = Math.min((int)(avW / newMag), imgW);
+            int newSrcH = Math.min((int)(avH / newMag), imgH);
+            int newX = (int)(cx - newSrcW / 2.0);
+            int newY = (int)(cy - newSrcH / 2.0);
+            newX = Math.max(0, Math.min(newX, imgW - newSrcW));
+            newY = Math.max(0, Math.min(newY, imgH - newSrcH));
+
+            // Apply – canvas stays pinned to full frame size
+            ic.setMagnification(newMag);
+            src.setBounds(newX, newY, newSrcW, newSrcH);
+            ic.setBounds(0, 0, avW, avH);   // keep canvas at full size
+            awtHost.repaint();              // clear old pixels before redraw
+            ic.repaint();
         };
         addMouseWheelListener(zoom);
         awtHost.addMouseWheelListener(zoom);
