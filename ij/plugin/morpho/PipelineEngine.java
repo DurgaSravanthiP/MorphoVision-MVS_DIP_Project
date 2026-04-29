@@ -25,18 +25,23 @@ public class PipelineEngine {
     }
 
     // ── Parameters ─────────────────────────────────────────────────────────
-    private double  gaussianSigma     = 2.0;     // higher = better removal of specular highlights
-    private boolean doBackgroundSub   = false;
-    private double  rollingBallRadius = 50.0;
-    private String  thresholdMethod   = "Otsu";
-    private int     manualThreshold   = 128;
-    private double  minParticleSize   = -1;      // -1 = auto (0.05% of image area)
-    private double  maxParticleSize   = Double.MAX_VALUE;
-    private double  minCircularity    = 0.0;
-    private double  nmPerPixel        = 1.0;
-    private String  unit              = "px";
+    public enum ImageMode { AUTO, BRIGHTFIELD, FLUORESCENCE, SEM }
+
+    private ImageMode imageMode        = ImageMode.AUTO;
+    private double  gaussianSigma      = 2.0;
+    private boolean doBackgroundSub    = false;
+    private double  rollingBallRadius  = 50.0;
+    private String  thresholdMethod    = "Otsu";
+    private int     manualThreshold    = 128;
+    private double  minParticleSize    = -1;      // -1 = auto (0.05% of image area)
+    private double  maxParticleSize    = Double.MAX_VALUE;
+    private double  minCircularity     = 0.0;
+    private boolean excludeEdge        = false;   // exclude particles touching border
+    private double  nmPerPixel         = 1.0;
+    private String  unit               = "px";
 
     // ── Setters ────────────────────────────────────────────────────────────
+    public void setImageMode(ImageMode m)      { imageMode = m; applyModeDefaults(); }
     public void setGaussianSigma(double s)     { gaussianSigma = s; }
     public void setDoBackgroundSub(boolean b)  { doBackgroundSub = b; }
     public void setRollingBallRadius(double r) { rollingBallRadius = r; }
@@ -45,9 +50,32 @@ public class PipelineEngine {
     public void setMinParticleSize(double s)   { minParticleSize = s; }
     public void setMaxParticleSize(double s)   { maxParticleSize = s; }
     public void setMinCircularity(double c)    { minCircularity = c; }
+    public void setExcludeEdge(boolean b)      { excludeEdge = b; }
     public void setNmPerPixel(double n)        { nmPerPixel = n; unit = "nm"; }
     public void setUmPerPixel(double u)        { nmPerPixel = u; unit = "µm"; }
     public String getUnit()                    { return unit; }
+
+    /** Apply sensible defaults per imaging mode. */
+    private void applyModeDefaults() {
+        switch (imageMode) {
+            case SEM:
+                // SEM: dark background, rough surface, touching particles
+                gaussianSigma   = 3.0;   // heavier blur for rough texture
+                thresholdMethod = "Triangle"; // Triangle works better for SEM
+                doBackgroundSub = false;
+                break;
+            case BRIGHTFIELD:
+                gaussianSigma   = 2.0;
+                thresholdMethod = "Otsu";
+                break;
+            case FLUORESCENCE:
+                gaussianSigma   = 1.5;
+                thresholdMethod = "Otsu";
+                doBackgroundSub = true; // uneven illumination is common
+                break;
+            default: break;
+        }
+    }
 
     // ── Run ────────────────────────────────────────────────────────────────
     public List<ParticleGeometry> run(ImagePlus imp, ProgressListener cb) {
@@ -77,14 +105,34 @@ public class PipelineEngine {
             }
 
             // ── Step 3: Threshold ──────────────────────────────────────────
-            boolean brightBg = detectBrightBackground(ip);
+            boolean brightBg;
+            if (imageMode == ImageMode.SEM) {
+                brightBg = false; // SEM always dark background
+            } else if (imageMode == ImageMode.BRIGHTFIELD) {
+                brightBg = true;
+            } else if (imageMode == ImageMode.FLUORESCENCE) {
+                brightBg = false;
+            } else {
+                brightBg = detectBrightBackground(ip); // AUTO
+            }
             cb.onStep(3, "Threshold: " + thresholdMethod + " | background=" +
-                    (brightBg ? "BRIGHT (brightfield)" : "DARK (fluorescence)"));
+                    (brightBg ? "BRIGHT" : "DARK") +
+                    (imageMode != ImageMode.AUTO ? " | mode=" + imageMode : ""));
             if (brightBg) ip.invert();
 
-            int thresh = "Manual".equalsIgnoreCase(thresholdMethod)
-                    ? manualThreshold
-                    : new AutoThresholder().getThreshold(AutoThresholder.Method.Otsu, ip.getHistogram());
+            // Threshold method
+            int thresh;
+            if ("Manual".equalsIgnoreCase(thresholdMethod)) {
+                thresh = manualThreshold;
+            } else {
+                AutoThresholder.Method method;
+                try {
+                    method = AutoThresholder.Method.valueOf(thresholdMethod);
+                } catch (Exception e) {
+                    method = AutoThresholder.Method.Otsu;
+                }
+                thresh = new AutoThresholder().getThreshold(method, ip.getHistogram());
+            }
             ip.threshold(thresh);
             work.updateAndDraw();
 
@@ -111,8 +159,15 @@ public class PipelineEngine {
             int measurements = Measurements.AREA | Measurements.PERIMETER |
                     Measurements.SHAPE_DESCRIPTORS | Measurements.FERET |
                     Measurements.ELLIPSE | Measurements.MEAN;
+            // No EXCLUDE_EDGE_PARTICLES so nothing is missed
             int options = ParticleAnalyzer.SHOW_OVERLAY_OUTLINES |
                           ParticleAnalyzer.CLEAR_WORKSHEET;
+            if (excludeEdge) {
+                options |= ParticleAnalyzer.EXCLUDE_EDGE_PARTICLES;
+                cb.onStep(4, "Edge particles excluded from count.");
+            } else {
+                cb.onStep(4, "Edge (half-cut) particles INCLUDED — they will be measured as partial.");
+            }
 
             ParticleAnalyzer pa = new ParticleAnalyzer(options, measurements,
                     rt, effectiveMinSize, maxParticleSize, minCircularity, 1.0);

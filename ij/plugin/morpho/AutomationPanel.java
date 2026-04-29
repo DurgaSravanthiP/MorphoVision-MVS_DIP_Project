@@ -48,8 +48,8 @@ public class AutomationPanel extends JInternalFrame {
     };
 
     private JTextField  sigmaField, minSizeField, thresholdField, scaleField;
-    private JCheckBox   bgSubCheck;
-    private JComboBox<String> threshMethodCombo, scaleUnitCombo;
+    private JCheckBox   bgSubCheck, excludeEdgeCheck;
+    private JComboBox<String> threshMethodCombo, scaleUnitCombo, imageModeCombo;
     private JButton     runBtn, exportCsvBtn, exportReportBtn;
 
     // ── Constructor ──────────────────────────────────────────────────────────
@@ -225,18 +225,31 @@ public class AutomationPanel extends JInternalFrame {
     }
 
     private JPanel buildStep2Controls() {
-        JPanel p = new JPanel(new GridLayout(2, 2, 8, 4));
+        JPanel p = new JPanel(new GridLayout(3, 2, 8, 4));
         p.setOpaque(false);
+
+        // Image Mode selector
+        p.add(label("Image Type:", SUBTEXT));
+        imageModeCombo = new JComboBox<>(new String[]{
+            "Auto-detect", "SEM (dark bg, rough)",
+            "Brightfield (white bg)", "Fluorescence (dark bg)"
+        });
+        imageModeCombo.setBackground(BTN_BG); imageModeCombo.setForeground(TEXT);
+        imageModeCombo.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        imageModeCombo.setToolTipText(
+            "SEM: Triangle threshold, σ=3 | Brightfield: Otsu, σ=2 | Fluorescence: Otsu+bg sub");
+        p.add(imageModeCombo);
+
         p.add(label("Gaussian σ (0=skip):", SUBTEXT));
         sigmaField = field("2.0");
         p.add(sigmaField);
-        bgSubCheck = new JCheckBox("Background Subtraction (for uneven lighting)", false);
+
+        bgSubCheck = new JCheckBox("Background Subtraction (uneven illumination only)", false);
         bgSubCheck.setForeground(SUBTEXT);
         bgSubCheck.setOpaque(false);
         bgSubCheck.setFont(new Font("SansSerif", Font.PLAIN, 10));
-        JLabel note = label("OFF by default — enable only for uneven illumination images", SUBTEXT);
-        note.setFont(new Font("SansSerif", Font.ITALIC, 9));
-        p.add(bgSubCheck); p.add(note);
+        p.add(bgSubCheck);
+        p.add(label("OFF by default — SEM/fluorescence modes set this automatically", SUBTEXT));
         return p;
     }
 
@@ -254,13 +267,24 @@ public class AutomationPanel extends JInternalFrame {
     }
 
     private JPanel buildStep4Controls() {
-        JPanel p = new JPanel(new GridLayout(1, 4, 8, 4));
+        JPanel p = new JPanel(new GridLayout(2, 4, 8, 4));
         p.setOpaque(false);
         p.add(label("Min size px² (-1=auto):", SUBTEXT));
         minSizeField = field("-1");
         p.add(minSizeField);
         p.add(label("Fill Holes + Watershed: AUTO ✅", new Color(40, 180, 90)));
-        p.add(label("(prevents over-splitting from internal reflections)", SUBTEXT));
+        p.add(label("(prevents over-splitting)", SUBTEXT));
+
+        excludeEdgeCheck = new JCheckBox("Exclude half-cut edge particles", false);
+        excludeEdgeCheck.setForeground(SUBTEXT);
+        excludeEdgeCheck.setOpaque(false);
+        excludeEdgeCheck.setFont(new Font("SansSerif", Font.PLAIN, 10));
+        excludeEdgeCheck.setToolTipText(
+            "ON = exclude particles touching image border (cleaner data)\n" +
+            "OFF = include them (higher count but partial geometry)");
+        p.add(excludeEdgeCheck);
+        p.add(label("Tip: exclude for cleaner geometry data", SUBTEXT));
+        p.add(new JLabel()); p.add(new JLabel());
         return p;
     }
 
@@ -422,15 +446,28 @@ public class AutomationPanel extends JInternalFrame {
     }
 
     private void configureEngine() {
+        // Image mode first — sets smart defaults for sigma/threshold
+        int modeIdx = imageModeCombo != null ? imageModeCombo.getSelectedIndex() : 0;
+        PipelineEngine.ImageMode mode = PipelineEngine.ImageMode.AUTO;
+        if      (modeIdx == 1) mode = PipelineEngine.ImageMode.SEM;
+        else if (modeIdx == 2) mode = PipelineEngine.ImageMode.BRIGHTFIELD;
+        else if (modeIdx == 3) mode = PipelineEngine.ImageMode.FLUORESCENCE;
+        engine.setImageMode(mode); // also updates sigma/threshold to mode defaults
+
+        // Manual field overrides (user can still fine-tune after mode is set)
         try { engine.setGaussianSigma(Double.parseDouble(sigmaField.getText())); } catch (Exception ignored) {}
         try { engine.setMinParticleSize(Double.parseDouble(minSizeField.getText())); } catch (Exception ignored) {}
         engine.setDoBackgroundSub(bgSubCheck.isSelected());
+        engine.setExcludeEdge(excludeEdgeCheck != null && excludeEdgeCheck.isSelected());
+
+        // Threshold method
         if (threshMethodCombo.getSelectedIndex() == 1) {
             engine.setThresholdMethod("Manual");
             try { engine.setManualThreshold(Integer.parseInt(thresholdField.getText())); } catch (Exception ignored) {}
-        } else {
-            engine.setThresholdMethod("Otsu");
         }
+        // (if Otsu is selected, mode already configured the right method)
+
+        // Scale calibration
         try {
             double sv = Double.parseDouble(scaleField.getText());
             int si = scaleUnitCombo.getSelectedIndex();
